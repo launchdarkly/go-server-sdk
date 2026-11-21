@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
 	"time"
 
@@ -616,6 +617,10 @@ func (client *LDClient) TrackMetric(
 		client.loggers.Warnf("TrackMetric called with invalid context: %s", err)
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
+	if math.IsNaN(metricValue) || math.IsInf(metricValue, 0) {
+		client.loggers.Warnf("TrackMetric called with non-finite metric value for event %q; event was not recorded", eventName)
+		return nil
+	}
 	client.trackWithHooks(
 		gocontext.TODO(),
 		eventName,
@@ -646,6 +651,10 @@ func (client *LDClient) TrackMetricCtx(
 	if err := context.Err(); err != nil {
 		client.loggers.Warnf("TrackMetricCtx called with invalid context: %s", err)
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
+	}
+	if math.IsNaN(metricValue) || math.IsInf(metricValue, 0) {
+		client.loggers.Warnf("TrackMetricCtx called with non-finite metric value for event %q; event was not recorded", eventName)
+		return nil
 	}
 	client.trackWithHooks(
 		ctx,
