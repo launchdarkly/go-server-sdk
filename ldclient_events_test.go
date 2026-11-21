@@ -2,6 +2,7 @@ package ldclient
 
 import (
 	gocontext "context"
+	"math"
 	"testing"
 	"time"
 
@@ -202,6 +203,33 @@ func TestTrackMetricCtxSendsCustomEventWithMetricAndData(t *testing.T) {
 	assert.Equal(t, data, e.Data)
 	assert.True(t, e.HasMetric)
 	assert.Equal(t, metric, e.MetricValue)
+}
+
+func TestTrackMetricWithNonFiniteValueSendsNoEventAndLogsWarning(t *testing.T) {
+	for name, metric := range map[string]float64{"NaN": math.NaN(), "+Inf": math.Inf(1), "-Inf": math.Inf(-1)} {
+		for _, method := range []string{"TrackMetric", "TrackMetricCtx"} {
+			t.Run(method+" "+name, func(t *testing.T) {
+				mockLog := ldlogtest.NewMockLog()
+				client := makeTestClientWithConfig(func(c *Config) {
+					c.Logging = ldcomponents.Logging().Loggers(mockLog.Loggers)
+				})
+				defer client.Close()
+
+				user := lduser.NewUser("userKey")
+				var err error
+				if method == "TrackMetric" {
+					err = client.TrackMetric("eventKey", user, metric, ldvalue.Null())
+				} else {
+					err = client.TrackMetricCtx(gocontext.TODO(), "eventKey", user, metric, ldvalue.Null())
+				}
+				assert.NoError(t, err)
+
+				events := client.eventProcessor.(*mocks.CapturingEventProcessor).Events
+				assert.Len(t, events, 0)
+				mockLog.AssertMessageMatch(t, true, ldlog.Warn, "non-finite metric value.*eventKey")
+			})
+		}
+	}
 }
 
 func TestTrackEventWithEmptyUserKeySendsNoEvent(t *testing.T) {

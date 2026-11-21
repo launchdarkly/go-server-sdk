@@ -3,6 +3,7 @@ package ldclient
 import (
 	gocontext "context"
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
@@ -366,4 +367,16 @@ func TestHooksAreExecutedForAllTrackMethods(t *testing.T) {
 			hook.Verify(t, afterCapture(testCase))
 		})
 	}
+}
+
+func TestHooksAreNotExecutedForNonFiniteTrackMetric(t *testing.T) {
+	testContext := ldcontext.New("test-context")
+	hook := sharedtest.NewTestHook("test-hook")
+	client, _ := MakeCustomClient("", Config{Offline: true, Hooks: []ldhooks.Hook{hook}}, 0)
+	client.eventsDefault = newEventsScope(client, false)
+
+	_ = client.TrackMetric(hookTestEvent, testContext, math.NaN(), ldvalue.Null())
+	_ = client.TrackMetricCtx(gocontext.TODO(), hookTestEvent, testContext, math.Inf(1), ldvalue.Null())
+
+	hook.VerifyNoCalls(t)
 }
