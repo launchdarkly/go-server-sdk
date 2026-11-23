@@ -1,6 +1,6 @@
 module github.com/launchdarkly/go-server-sdk/v7
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/fsnotify/fsnotify v1.4.7
@@ -12,7 +12,7 @@ require (
 	github.com/launchdarkly/go-ntlm-proxy-auth v1.0.3
 	github.com/launchdarkly/go-sdk-common/v3 v3.6.0
 	github.com/launchdarkly/go-sdk-events/v3 v3.9.0
-	github.com/launchdarkly/go-server-sdk-evaluation/v3 v3.2.1
+	github.com/launchdarkly/go-server-sdk-evaluation/v3 v3.2.2
 	github.com/launchdarkly/go-test-helpers/v3 v3.1.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/stretchr/testify v1.9.0
