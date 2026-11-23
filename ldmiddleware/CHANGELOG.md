@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/launchdarkly/go-server-sdk/compare/ldmiddleware/v0.1.3...ldmiddleware/v0.1.4) (2026-11-23)
+
+
+### Bug Fixes
+
+* Require Go 1.26 or later ([#522](https://github.com/launchdarkly/go-server-sdk/issues/522)) ([630388a](https://github.com/launchdarkly/go-server-sdk/commit/630388af906fa49dcbc8786046b80d9af5d7ce03))
+
 ## [0.1.3](https://github.com/launchdarkly/go-server-sdk/compare/ldmiddleware/v0.1.2...ldmiddleware/v0.1.3) (2026-06-11)
 
 
