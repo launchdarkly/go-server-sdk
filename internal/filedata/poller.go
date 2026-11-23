@@ -88,9 +88,20 @@ func (p *Poller) run() {
 func observeAll(paths []string) []fileState {
 	states := make([]fileState, len(paths))
 	for i, path := range paths {
-		if info, err := os.Stat(path); err == nil {
-			states[i] = fileState{exists: true, modTime: info.ModTime(), size: info.Size()}
-		}
+		states[i] = observe(path)
 	}
 	return states
+}
+
+// observe examines one file. os.Stat follows symbolic links, so the state is that of the
+// file a link points to.
+func observe(path string) fileState {
+	if info, err := os.Stat(path); err == nil {
+		return fileState{exists: true, modTime: info.ModTime(), size: info.Size()}
+	}
+	return fileState{}
+}
+
+func (s fileState) equal(other fileState) bool {
+	return s.exists == other.exists && s.modTime.Equal(other.modTime) && s.size == other.size
 }
