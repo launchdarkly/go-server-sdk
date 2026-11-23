@@ -57,6 +57,7 @@ var capabilities = []string{
 	servicedef.CapabilityRetryConformanceFDv1Streaming,
 	servicedef.CapabilityRetryConformanceFDv1Polling,
 	servicedef.CapabilityEventDeliveryCooldown,
+	servicedef.CapabilityDiagnosticEvents,
 	servicedef.CapabilityFlagOverrides,
 	servicedef.CapabilityWrapper,
 	servicedef.CapabilityHTTPProxy,
