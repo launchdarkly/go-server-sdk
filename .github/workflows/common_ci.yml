@@ -40,7 +40,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
-      - uses: launchdarkly/gh-actions/actions/persistent-stores@persistent-stores-v0
+      - uses: launchdarkly/gh-actions/actions/persistent-stores@persistent-stores/v0
         with:
           redis: 'true'
           consul: 'true'
@@ -59,14 +59,14 @@ jobs:
 
         run: make start-contract-test-service-bg
       - name: Run SDK contract test v2
-        uses: launchdarkly/gh-actions/actions/contract-tests@contract-tests-v1
+        uses: launchdarkly/gh-actions/actions/contract-tests@contract-tests/v1
         with:
           enable_persistence_tests: 'true'
           test_service_port: ${{ env.TEST_SERVICE_PORT }}
           token: ${{ secrets.GITHUB_TOKEN }}
           stop_service: 'false'
       - name: Run SDK contract test v3
-        uses: launchdarkly/gh-actions/actions/contract-tests@contract-tests-v1
+        uses: launchdarkly/gh-actions/actions/contract-tests@contract-tests/v1
         with:
           enable_persistence_tests: 'true'
           test_service_port: ${{ env.TEST_SERVICE_PORT }}
