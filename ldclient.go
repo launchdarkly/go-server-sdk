@@ -618,7 +618,7 @@ func (client *LDClient) TrackMetric(
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
 	if math.IsNaN(metricValue) || math.IsInf(metricValue, 0) {
-		client.loggers.Warnf("TrackMetric called with non-finite metric value for event %q; event was not recorded", eventName)
+		client.loggers.Warnf("TrackMetric called with non-finite metric value for event %q; event not recorded", eventName)
 		return nil
 	}
 	client.trackWithHooks(
@@ -653,7 +653,7 @@ func (client *LDClient) TrackMetricCtx(
 		return nil // Don't return an error value because we didn't in the past and it might confuse users
 	}
 	if math.IsNaN(metricValue) || math.IsInf(metricValue, 0) {
-		client.loggers.Warnf("TrackMetricCtx called with non-finite metric value for event %q; event was not recorded", eventName)
+		client.loggers.Warnf("TrackMetricCtx called with non-finite metric value for event %q; event not recorded", eventName)
 		return nil
 	}
 	client.trackWithHooks(
