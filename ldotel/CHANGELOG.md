@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.6](https://github.com/launchdarkly/go-server-sdk/compare/ldotel/v1.3.5...ldotel/v1.3.6) (2026-11-23)
+
+
+### Bug Fixes
+
+* Require Go 1.26 or later ([#522](https://github.com/launchdarkly/go-server-sdk/issues/522)) ([630388a](https://github.com/launchdarkly/go-server-sdk/commit/630388af906fa49dcbc8786046b80d9af5d7ce03))
+
 ## [1.3.5](https://github.com/launchdarkly/go-server-sdk/compare/ldotel/v1.3.4...ldotel/v1.3.5) (2026-07-28)
 
 
