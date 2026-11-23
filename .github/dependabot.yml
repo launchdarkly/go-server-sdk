@@ -6,6 +6,7 @@ updates:
       - '/.github/actions/*'
     schedule:
       interval: 'monthly'
+    versioning-strategy: increase-if-necessary
     cooldown:
       default-days: 7
       exclude:
