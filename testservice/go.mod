@@ -1,6 +1,6 @@
 module github.com/launchdarkly/go-server-sdk/v7/testservice
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/aws/aws-sdk-go-v2/config v1.17.5
