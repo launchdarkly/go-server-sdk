@@ -27,12 +27,12 @@ jobs:
     # while staying well under the 6-hour default that would otherwise apply.
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
           ref: ${{ inputs.branch || github.ref }}
 
       - name: Setup Go ${{ needs.go-versions.outputs.latest }}
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@v7.1.0
         with:
           go-version: ${{ needs.go-versions.outputs.latest }}
 
@@ -71,7 +71,7 @@ jobs:
 
       - name: Upload contract test results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: contract-test-results
           path: junit/
@@ -79,7 +79,7 @@ jobs:
 
       - name: Upload test service logs
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: contract-test-service-log
           path: /tmp/sdk-contract-test-service.log

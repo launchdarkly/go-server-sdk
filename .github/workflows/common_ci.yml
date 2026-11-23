@@ -19,16 +19,16 @@ jobs:
     runs-on: ubuntu-latest
     name: 'Unit Tests and Coverage'
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - name: Setup Go ${{ inputs.go-version }}
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@v7.1.0
         with:
           go-version: ${{ inputs.go-version }}
-      - uses: ./.github/actions/unit-tests
+      - uses: $/.github/actions/unit-tests
         with:
           lint: ${{ inputs.lint }}
           test-target: sdk-test
-      - uses: ./.github/actions/coverage
+      - uses: $/.github/actions/coverage
         with:
           enforce: 'false'
 
@@ -39,17 +39,17 @@ jobs:
       TEST_SERVICE_PORT: 10000
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - uses: launchdarkly/gh-actions/actions/persistent-stores@persistent-stores/v0
         with:
           redis: 'true'
           consul: 'true'
           dynamodb: 'true'
       - name: Setup Go ${{ inputs.go-version }}
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@v7.1.0
         with:
           go-version: ${{ inputs.go-version }}
-      - uses: ./.github/actions/get-go-version
+      - uses: $/.github/actions/get-go-version
         id: go-version
       - name: Make workspace
         run: make workspace
@@ -74,7 +74,7 @@ jobs:
           version: v3
 
       - name: Upload test service logs
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: Contract-test-service-logs-${{ steps.go-version.outputs.version }}
           path: /tmp/sdk-contract-test-service.log
@@ -83,9 +83,9 @@ jobs:
     name: 'Benchmarks'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - name: Setup Go ${{ inputs.go-version }}
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@v7.1.0
         with:
           go-version: ${{ inputs.go-version }}
-      - uses: ./.github/actions/benchmarks
+      - uses: $/.github/actions/benchmarks

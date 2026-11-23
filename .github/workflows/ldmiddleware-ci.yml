@@ -26,15 +26,15 @@ jobs:
         go-version: ${{ fromJSON(needs.go-versions.outputs.matrix) }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - name: Setup Go ${{ inputs.go-version }}
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@v7.1.0
         with:
           go-version: ${{ matrix.go-version }}
-      - uses: ./.github/actions/unit-tests
+      - uses: $/.github/actions/unit-tests
         with:
           lint: ${{ matrix.go-version == needs.go-versions.outputs.latest }}
           test-target: ldmiddleware-test
-      - uses: ./.github/actions/coverage
+      - uses: $/.github/actions/coverage
         with:
           enforce: 'false'
