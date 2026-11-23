@@ -49,7 +49,7 @@ jobs:
         run: mkdir -p junit
 
       - name: Run SDK contract test v2
-        uses: launchdarkly/gh-actions/actions/contract-tests@contract-tests-v1
+        uses: launchdarkly/gh-actions/actions/contract-tests@contract-tests/v1
         with:
           test_service_port: '10000'
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -59,7 +59,7 @@ jobs:
           extra_params: '-skip-from=testservice/test-suppressions.txt -enable-long-running-tests -junit junit/contract-tests-v2.xml'
 
       - name: Run SDK contract test v3
-        uses: launchdarkly/gh-actions/actions/contract-tests@contract-tests-v1
+        uses: launchdarkly/gh-actions/actions/contract-tests@contract-tests/v1
         with:
           test_service_port: '10000'
           version: 'v3'
